@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: dettaglio.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: dettaglio.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>const queryString = window.location.search;
+const urlParams = new URLSearchParams(queryString);
+
+let nome;
+let latitudine;
+let longitudine;
+
+const titolo= document.getElementById("titolo")
+const temperatura= document.getElementById("temperaturaAttuale")
+const vento= document.getElementById("ventoAttuale")
+const orarioRilevazione= document.getElementById("orarioRilevazione")
+const tabella= document.getElementById("tabella")
+const nome_finesta=document.getElementById("titolo_pagina")
+
+
+/**
+ * Funzione che legge i parametri dal URL
+ */
+function leggiParametri(){
+    nome= urlParams.get("nome")
+    latitudine= urlParams.get("lat")
+    longitudine = urlParams.get("lon")
+}
+
+/**
+ * Funzione che effettua la richiesta dei dati del meteo alla API Open-meteo
+ * @returns L'array contenente i dati
+ * @async
+ */
+async function richiestaMeteo() {
+    const urlMeteo="https://api.open-meteo.com/v1/forecast?"
+    const urlNuovo= urlMeteo+"latitude="+latitudine+"&amp;longitude="+longitudine+"&amp;current=temperature_2m,wind_speed_10m&amp;timezone=auto&amp;daily=temperature_2m_max,temperature_2m_min,precipitation_sum"
+    const risposta= await fetch(urlNuovo)
+    const risposta_meteo=await risposta.json()
+
+    return risposta_meteo;
+}
+
+
+/**
+ * Funzione che aggiona i dati della pagina con i dati meteo corretti
+ * @async
+ */
+async function aggiornaDati() {
+    leggiParametri();
+    
+    const dati_meteo = await richiestaMeteo()
+
+    console.log(dati_meteo)
+
+    temperatura.innerHTML+= dati_meteo.current.temperature_2m
+    vento.innerHTML+=dati_meteo.current.wind_speed_10m
+    orario= new Date(dati_meteo.current.time)
+    orarioRilevazione.innerHTML+="Il giorno "+orario.getDate()+"/"+( orario.getMonth()+1 != 13?orario.getMonth()+1: orario.getMonth())+"/"+orario.getFullYear()+" alle ore ";
+    orarioRilevazione.innerHTML+=orario.getHours()+":"+orario.getMinutes()+":"+orario.getSeconds();
+}
+
+/**
+ * Funzione che aggiuge un riga alla tabella
+ * @param {Array&lt;String>} datiGiornalieri 
+ */
+function creaRigaTabella(datiGiornalieri){
+    const riga= document.createElement("tr")
+
+    for (dato of datiGiornalieri){
+        const colonna= document.createElement("th")
+        colonna.innerHTML=dato
+        riga.append(colonna)
+    }
+
+    tabella.append(riga)
+}
+
+
+/**
+ * Funzione che aggiorna la tabella con i dati meteo corretti
+ * @async
+ */
+async function aggiornaTabella(){
+    const dati_meteo= await richiestaMeteo();
+    const dati_meteo_giornalieri = dati_meteo.daily
+
+    for (let i=0; i&lt;7; i++){
+        const data=new Date(dati_meteo_giornalieri.time[i])
+        const dataNumerica=data.getDate()+"/"+( data.getMonth()+1 != 13?data.getMonth()+1: data.getMonth())+"/"+data.getFullYear()
+        creaRigaTabella([dataNumerica, dati_meteo_giornalieri.temperature_2m_max[i], dati_meteo_giornalieri.temperature_2m_min[i], dati_meteo_giornalieri.precipitation_sum[i]])
+    }
+}
+
+/**
+ * Event Listener che imposta il titolo corretto, e aggiorna i dati
+ */
+document.addEventListener("DOMContentLoaded", function(){
+    titolo.innerHTML="3DMeteo: "+nome
+    nome_finesta.innerHTML+=nome
+    
+    aggiornaDati().then()
+    aggiornaTabella().then()
+})
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Global</h3><ul><li><a href="global.html#aggiornaDati">aggiornaDati</a></li><li><a href="global.html#aggiornaSelectProvincie">aggiornaSelectProvincie</a></li><li><a href="global.html#aggiornaTabella">aggiornaTabella</a></li><li><a href="global.html#creaRegioni">creaRegioni</a></li><li><a href="global.html#creaRigaTabella">creaRigaTabella</a></li><li><a href="global.html#generaLinkDettaglio">generaLinkDettaglio</a></li><li><a href="global.html#leggiParametri">leggiParametri</a></li><li><a href="global.html#localizzazioneComune">localizzazioneComune</a></li><li><a href="global.html#meteoComune">meteoComune</a></li><li><a href="global.html#modificaMappa">modificaMappa</a></li><li><a href="global.html#normalizza">normalizza</a></li><li><a href="global.html#ricevi">ricevi</a></li><li><a href="global.html#richiestaMeteo">richiestaMeteo</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Sun Jan 18 2026 19:10:21 GMT+0100 (Ora standard dell’Europa centrale)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>
