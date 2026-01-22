@@ -1,13 +1,17 @@
 const tuttiIComuni=[];
-const paragrafoCaricamento=document.getElementById("caricamento");
 
 const selectRegione=document.getElementById("selectRegione")
 const selectProvincie=document.getElementById("selectProvincia")
 const selectComuni=document.getElementById("selectComune")
 
+
 const mappa = L.map('mappa').setView([41.9, 12.483333 ], 6);
 const gruppo=L.layerGroup().addTo(mappa);
 const arrayComuniSelezionati=[]
+
+const visualizzazione_preferito=document.getElementById("comunePreferito");
+const visualizzazione_recente=document.getElementById("comuneRecente");
+const bottoneCancella=document.getElementById("cancellaDati");
 
 //GESTIONE SELECT E FILTRAGGIO COMUNI
 
@@ -28,7 +32,7 @@ function aggiungiOpzioniSelect(select, arrayDaAggiungere){
 
 /**
  * Funzione che normalizza un testo in input
- * @param {String} testo Il testo da nomalizzare
+ * @param {String} testo Il testo da normalizzare
  * @returns Il testo normalizzato 
  */
 function normalizza(testo) {
@@ -42,7 +46,7 @@ function normalizza(testo) {
 }
 
 
-/**Funzione che estreare le regioni dal array, elimina i dublicati, ordina, e le aggiuge come opzioni alla select giusta**/
+/**Funzione che estrae le regioni dal array, elimina i dublicati, ordina, e le aggiuge come opzioni alla select giusta**/
 
 function creaRegioni(){
     const regioni= []
@@ -122,6 +126,36 @@ function aggiornaSelectComuni(provincia){
     arrayComuniSelezionati.push(...arrFiltrato);
 }
 
+/**
+ * Funzione che gestisce il localStorage del comune preferito
+ */
+function gestionePreferito(){
+    const preferito = localStorage.getItem("Preferito");
+    if (preferito){
+        const comunePref= preferito.split(",")
+        const link_dettaglio=generaLinkDettaglio(comunePref[0],comunePref[1], comunePref[2]);
+        visualizzazione_preferito.innerHTML+= '<a href="'+link_dettaglio+'" style="color:darkorange;">'+comunePref[0]+"</a>";
+    }else{
+        visualizzazione_preferito.innerHTML="Non hai un comune preferito"
+    }
+}
+
+/**
+ * Funzione che gestisce il localStorage del comune recente
+ */
+function gestioneRecente(){
+    const recente = localStorage.getItem("Recente");
+    console.log(recente)
+    if (recente){
+        const comuneRec= recente.split(",")
+        const link_dettaglio=generaLinkDettaglio(comuneRec[0],comuneRec[1], comuneRec[2]);
+        visualizzazione_recente.innerHTML+= '<a href="'+link_dettaglio+'" style="color:darkorange;">'+comuneRec[0]+"</a>";
+    }
+    else{
+        visualizzazione_recente.innerHTML="Non hai nessun comune recente"
+    }
+}
+
 //GESTIONE MAPPA
 
 /**
@@ -133,7 +167,6 @@ function caricaMappa(){
         maxZoom: 19,
         attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
     }).addTo(mappa);
-
 }
 
 /**
@@ -211,7 +244,7 @@ async function modificaMappa(arrayComuni) {
  * Funzione che richiede la temperatura attuale alla API Open-meteo
  * @param {number} lat La latitudine del comune 
  * @param {number} long La longitudine del comune 
- * @returns La temperatura attuale
+ * @returns La temperatura attuale oppure un messaggio di errore
  * @async
  */
 async function meteoComune(lan, lon) {
@@ -220,6 +253,8 @@ async function meteoComune(lan, lon) {
     const URL_MODIFICATO=URL_METEO+"latitude="+lan+"&longitude="+lon+"&current=temperature_2m"
 
     const rispostaServer= await fetch(URL_MODIFICATO)
+
+    if (!rispostaServer.ok) return "Si è verificato un errore di rete" 
 
     const risposta_meteo=await rispostaServer.json();
 
@@ -230,13 +265,15 @@ async function meteoComune(lan, lon) {
 /**
  * Funzione che estrate la latitudine e la longitudine di un comune dalla richiesta alla API Open-meteo-geo 
  * @param {String} comune Il nome del comune da localizzatr 
- * @returns Un array contenenta la latitudine e la longitudine del comune, se esso esiste, altrimenti null
+ * @returns Un array contenente la latitudine e la longitudine del comune, se esso esiste, altrimenti null
  */
 async function localizzazioneComune(comune) {
     const URL_GEOLOCALIZZAZIONE="https://geocoding-api.open-meteo.com/v1/search?";
 
     const URL_DINAMICO=URL_GEOLOCALIZZAZIONE+'name='+comune+'&count=5&language=it&format=json';
     const rispostaServer=await fetch(URL_DINAMICO);
+
+    if (!rispostaServer.ok) return null;
     
     const arrrayJson=await rispostaServer.json();
     
@@ -247,6 +284,7 @@ async function localizzazioneComune(comune) {
                 return [r.latitude, r.longitude];
         }
     }
+
     return null;
 }
 
@@ -271,15 +309,14 @@ async function ricevi() {
 //GESTIONE EVENT LISTENER
 
 /**
- * Funzione che gestisce l'animazione del caricamento dei comuni
- * @private
- * @param {number} punti quanti punti deve inserire 
+ * Gestione del pulsante che cancella i dati dal localStorage
  */
-function mostraCaricamento(punti) {
-    punti = (punti + 1) % 4; // 0,1,2,3
-    paragrafoCaricamento.innerHTML =
-        "Caricamento dei comuni" + ".".repeat(punti);
-}
+bottoneCancella.addEventListener("click", function(){
+    localStorage.clear();
+    gestionePreferito();
+    gestioneRecente();
+});
+
 
 /**Event listener che imposta le lunchezze del select a 1 (Elimino tutti i nodi figlio tranne il primo), e aggiorna la select con le opnioni correte**/
 selectRegione.addEventListener("change", function(){
@@ -317,33 +354,50 @@ selectComuni.addEventListener("change", function(){
         })
 })
 
+/**
+ * Funzione che mostra il caricamento della pagina
+ * @param {number} punti Il numero di punti da inserire
+ * @param {HTMLCollection} elemento L'elemento su cui mostrare il caricamento 
+ */
+function mostraCaricamento(punti, elemento) {
+  elemento.textContent =
+    "Caricamento dei comuni" + ".".repeat(punti);
+}
+
+
 /**Event listener che all caricamento della pagina inizia il caricamento dei comuni e dopo carica la select delle regioni*/
-document.addEventListener("DOMContentLoaded", function(){
-    let punti=0
+document.addEventListener("DOMContentLoaded", () => {
+  const paragrafo = document.getElementById("paragrafoCaricamento");
 
-    caricaMappa();
+  let punti = 0;
 
-    let caricamento=setInterval(()=>{
-        mostraCaricamento(punti)
-        punti++
-    },300)
+  const caricamento = setInterval(() => {
+    punti = (punti + 1) % 4;
+    mostraCaricamento(punti, paragrafo);
+  }, 300);
 
-    ricevi()
-        .then(risposta =>{
-            for(let i=0; i<risposta.length; i++){
-                tuttiIComuni.push(risposta[i])
-            }
+  gestionePreferito();
+  gestioneRecente();
+  caricaMappa();
+
+  ricevi()
+    .then(risposta => {
+         for(let i=0; i<risposta.length; i++){
+            tuttiIComuni.push(risposta[i])
+        }
             
-            clearInterval(caricamento);
-            paragrafoCaricamento.innerHTML=""   
+        clearInterval(caricamento);
+        paragrafoCaricamento.innerHTML=""   
             
-            creaRegioni();
-        })
-        .catch(errore => {
-            clearInterval(caricamento);
-            paragrafoCaricamento.innerHTML="!Errore nel caricamento dei comuni.Riprovare più tardi!"
-        })
-})
+        creaRegioni();
+    })
+    .catch(() => {
+      clearInterval(caricamento);
+      paragrafo.textContent =
+        "Errore nel caricamento dei comuni. Riprovare";
+    });
+});
+
 
 
 
