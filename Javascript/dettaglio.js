@@ -4,22 +4,38 @@ const urlParams = new URLSearchParams(queryString);
 let nome;
 let latitudine;
 let longitudine;
+let favorito=false;
 
 const titolo= document.getElementById("titolo")
 const temperatura= document.getElementById("temperaturaAttuale")
 const vento= document.getElementById("ventoAttuale")
 const orarioRilevazione= document.getElementById("orarioRilevazione")
-const tabella= document.getElementById("tabella")
 const nome_finesta=document.getElementById("titolo_pagina")
+const stella= document.getElementById("stella");
 
+const alba_tramonto=document.getElementById("extraParam");
+const giorni=document.getElementById("extraDays");
+const t_head=document.getElementById("intestazioneTabella");
+const t_body= document.getElementById("tabellaPrevisioni");
+
+//GESTIONE RICHIESTE METEO 
 
 /**
- * Funzione che legge i parametri dal URL
+ * Funzione che legge i parametri dal URL, e contralle se il comune è il preferito
  */
 function leggiParametri(){
     nome= urlParams.get("nome")
     latitudine= urlParams.get("lat")
     longitudine = urlParams.get("lon")
+
+    let comunePref=localStorage.getItem("Preferito");
+
+    if(comunePref){
+        console.log(comunePref)
+        favorito=comunePref.split(",")[0]==nome?true:false;
+    }
+
+    if (favorito) stella.src="../img/Stella_piena.png";
 }
 
 /**
@@ -29,7 +45,9 @@ function leggiParametri(){
  */
 async function richiestaMeteo() {
     const urlMeteo="https://api.open-meteo.com/v1/forecast?"
-    const urlNuovo= urlMeteo+"latitude="+latitudine+"&longitude="+longitudine+"&current=temperature_2m,wind_speed_10m&timezone=auto&daily=temperature_2m_max,temperature_2m_min,precipitation_sum"
+    let urlNuovo= urlMeteo+"latitude="+latitudine+"&longitude="+longitudine+"&current=temperature_2m,wind_speed_10m&timezone=auto"
+    urlNuovo+="&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max,sunrise,sunset"
+    urlNuovo+="&forecast_days="+giorni.value;
     const risposta= await fetch(urlNuovo)
     const risposta_meteo=await risposta.json()
 
@@ -43,17 +61,47 @@ async function richiestaMeteo() {
  */
 async function aggiornaDati() {
     leggiParametri();
-    
     const dati_meteo = await richiestaMeteo()
-
-    console.log(dati_meteo)
 
     temperatura.innerHTML+= dati_meteo.current.temperature_2m
     vento.innerHTML+=dati_meteo.current.wind_speed_10m
     orario= new Date(dati_meteo.current.time)
     orarioRilevazione.innerHTML+="Il giorno "+orario.getDate()+"/"+( orario.getMonth()+1 != 13?orario.getMonth()+1: orario.getMonth())+"/"+orario.getFullYear()+" alle ore ";
-    orarioRilevazione.innerHTML+=orario.getHours()+":"+orario.getMinutes()+":"+orario.getSeconds();
+    orarioRilevazione.innerHTML+=orario.getHours()+":"+orario.getMinutes();
 }
+
+//GESTIONE TABELLA
+
+/**
+ * Funzione che dato un codice meteo, restituisce la corrispettiva immagine
+ * @param {number} code Il codice meteo 
+ * @returns La stringa contenete il codice HTML con tag <img> con la rispettiva immagine
+ */
+function iconaMeteo(code) {
+  if (code === 0)
+    return 'Sereno <br><img src="../img/icone/sereno.png" alt="Sereno" width="100px" height="70px">';
+
+  if (code >= 1 && code <= 3)
+    return 'Nuvoloso <br><img src="../img/icone/nuvoloso.png" alt="Nuvoloso" width="100px" height="70px">';
+
+  if (code === 45 || code === 48)
+    return 'Nebbia <br><img src="../img/icone/nebbia.png" alt="Nebbia" width="100px" height="70px">';
+
+  if ((code >= 51 && code <= 57) || (code>=80 && code<=82))
+    return 'Pioggerella <br><img src="../img/icone/pioggia.png" alt="Pioggerella" width="100px" height="70px">';
+
+  if (code >= 61 && code <= 67)
+    return 'Pioggia <br><img src="../img/icone/pioggia.png" alt="Pioggia" width="100px" height="70px">';
+
+  if ((code >= 71 && code <= 77) || code==85 || code==86 )
+    return 'Neve <br><img src="../img/icone/neve.png" alt="Neve" width="100px" height="70px"">';
+
+  if (code >= 95 && code <= 99)
+    return 'Temporale <br><img src="../img/icone/temporale.png" alt="Temporale" width="100px" height="70px">';
+
+  return 'Sconosciuto <br><img src="" alt="Sconosciuto" width="100px" height="70px">';
+}
+
 
 /**
  * Funzione che aggiuge un riga alla tabella
@@ -63,14 +111,32 @@ function creaRigaTabella(datiGiornalieri){
     const riga= document.createElement("tr")
 
     for (dato of datiGiornalieri){
-        const colonna= document.createElement("th")
+        const colonna= document.createElement("td")
+        colonna.style="font-size:20px"
         colonna.innerHTML=dato
         riga.append(colonna)
     }
 
-    tabella.append(riga)
+    t_body.append(riga)
 }
 
+/**
+ * Funzione che crea l'instestazione, in base se l'opzione alba è stata selezionata
+ * @param {boolean} alba Se l'alba è stata selezionata 
+ */
+function creaIntestazione(alba){
+    const instestazione=document.createElement("tr")
+
+    t_head.innerHTML=""
+    t_body.innerHTML=""
+
+    instestazione.innerHTML="<th>Data</th> <th>Condizione meteo</th> <th>Temperatura massima (°C)</th> <th>Temperatura minima (°C)</th>"
+    instestazione.innerHTML+="<th>Somma precipitazioni (mm)</th><th>Vento</th>"
+
+    if (alba) instestazione.innerHTML+="<th>Alba</th> <th>Tramonto</th>"
+
+    t_head.append(instestazione);
+}
 
 /**
  * Funzione che aggiorna la tabella con i dati meteo corretti
@@ -80,20 +146,96 @@ async function aggiornaTabella(){
     const dati_meteo= await richiestaMeteo();
     const dati_meteo_giornalieri = dati_meteo.daily
 
-    for (let i=0; i<7; i++){
+    creaIntestazione(alba_tramonto.checked);
+
+    for (let i=0; i<giorni.value; i++){
+        console.log(dati_meteo_giornalieri)
         const data=new Date(dati_meteo_giornalieri.time[i])
         const dataNumerica=data.getDate()+"/"+( data.getMonth()+1 != 13?data.getMonth()+1: data.getMonth())+"/"+data.getFullYear()
-        creaRigaTabella([dataNumerica, dati_meteo_giornalieri.temperature_2m_max[i], dati_meteo_giornalieri.temperature_2m_min[i], dati_meteo_giornalieri.precipitation_sum[i]])
+        const condizione = iconaMeteo(dati_meteo_giornalieri.weather_code[i]);
+        const arrayGiornoMeteo=[dataNumerica, condizione, dati_meteo_giornalieri.temperature_2m_max[i], dati_meteo_giornalieri.temperature_2m_min[i]]
+        arrayGiornoMeteo.push(dati_meteo_giornalieri.precipitation_sum[i]);
+        arrayGiornoMeteo.push(dati_meteo_giornalieri.wind_speed_10m_max[i]);
+
+        if (alba_tramonto.checked){
+            const orario_alba=new Date(dati_meteo_giornalieri.sunrise[i])
+            const orario_tramonto = new Date(dati_meteo_giornalieri.sunset[i])
+            arrayGiornoMeteo.push(orario_alba.getHours()+":"+orario_alba.getMinutes());
+            arrayGiornoMeteo.push(orario_tramonto.getHours()+":"+orario_tramonto.getMinutes());
+        }
+        creaRigaTabella(arrayGiornoMeteo)
     }
+}
+
+//GESTIONE EVENT LISTENER
+
+/**Event listener che aggiorna la tabella ad ogni cambiamento della checkbox sul orario dell'alba e tramonto */
+alba_tramonto.addEventListener("change", function(){
+    aggiornaTabella();
+})
+
+/**Event listener che aggiorna la tabella ad ogni variazione del numero di giorni */
+giorni.addEventListener("change", function(){
+    if (this.value < 1) this.value=1;
+    else if (this.value>16) this.value=16;
+    
+    aggiornaTabella();
+})
+
+/**Event listener che illumina la stella se il mouse ci passa sopra */
+stella.addEventListener("mouseover", function(){
+    if(!favorito) stella.src="../img/Stella_piena.png";
+})
+/**Event listener che spegne la stella se il mouse passa fuori da essas */
+stella.addEventListener("mouseout", function(){
+   if (!favorito) stella.src="../img/Stella_vuota.png";
+})
+
+/**Event listener che salva nel localStorage i dati del comune in caso il comune venga scelto come preferito */
+stella.addEventListener("click", function(){
+    if (!favorito){
+        localStorage.setItem("Preferito", [nome,latitudine, longitudine]);
+        stella.src="../img/Stella_piena.png";
+        favorito=true;
+    }
+    else{
+        favorito=false;
+        localStorage.removeItem("Preferito")
+    }
+})
+
+/**
+ * Funzione che mostra il caricamento della pagina
+ * @param {number} punti Il numero di punti da inserire
+ * @param {HTMLCollection} elemento L'elemento su cui mostrare il caricamento 
+ */
+function mostraCaricamento(punti, elemento) {
+  elemento.textContent =
+    "Caricamento dei comuni" + ".".repeat(punti);
 }
 
 /**
  * Event Listener che imposta il titolo corretto, e aggiorna i dati
  */
 document.addEventListener("DOMContentLoaded", function(){
-    titolo.innerHTML="3DMeteo: "+nome
-    nome_finesta.innerHTML+=nome
-    
-    aggiornaDati().then()
+    const paragrafo = document.getElementById("paragrafoCaricamento");
+
+      let punti = 0;
+
+    const caricamento = setInterval(() => {
+        punti = (punti + 1) % 4;
+        mostraCaricamento(punti, paragrafo);
+    }, 300);
+
+    aggiornaDati().then(risposta =>{
+        clearInterval(caricamento);
+        paragrafoCaricamento.innerHTML=""   
+        
+        titolo.innerHTML="3DMeteo: "+nome
+        nome_finesta.innerHTML+=nome
+    })
     aggiornaTabella().then()
+
+    localStorage.setItem("Recente", [nome, latitudine, longitudine]);
+
 })
