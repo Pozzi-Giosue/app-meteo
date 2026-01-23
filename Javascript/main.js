@@ -7,6 +7,7 @@ const selectComuni=document.getElementById("selectComune")
 
 const mappa = L.map('mappa').setView([41.9, 12.483333 ], 6);
 const gruppo=L.layerGroup().addTo(mappa);
+
 const arrayComuniSelezionati=[]
 
 const visualizzazione_preferito=document.getElementById("comunePreferito");
@@ -91,6 +92,7 @@ function aggiornaSelectProvincie(regione){
     //Casto l'array filtrato in un Set (Tolgo i dublicati), in seguito lo ordino (Set non è ordinato)
     const setProvincie= new Set(arrayProvincie)
     const arrayProvincieFiltrate=[]
+
     arrayProvincieFiltrate.push(...setProvincie)
     arrayProvincieFiltrate.sort()
     
@@ -145,7 +147,6 @@ function gestionePreferito(){
  */
 function gestioneRecente(){
     const recente = localStorage.getItem("Recente");
-    console.log(recente)
     if (recente){
         const comuneRec= recente.split(",")
         const link_dettaglio=generaLinkDettaglio(comuneRec[0],comuneRec[1], comuneRec[2]);
@@ -394,7 +395,7 @@ document.addEventListener("DOMContentLoaded", () => {
     .catch(() => {
       clearInterval(caricamento);
       paragrafo.textContent =
-        "Errore nel caricamento dei comuni. Riprovare";
+        "Errore nel caricamento dei comuni. Riprovare più tardi.";
     });
 });
 
