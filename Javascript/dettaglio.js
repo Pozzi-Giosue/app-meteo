@@ -21,7 +21,7 @@ const t_body= document.getElementById("tabellaPrevisioni");
 //GESTIONE RICHIESTE METEO 
 
 /**
- * Funzione che legge i parametri dal URL, e contralle se il comune è il preferito
+ * Funzione che legge i parametri dal URL
  */
 function leggiParametri(){
     nome= urlParams.get("nome")
@@ -42,18 +42,20 @@ function leggiParametri(){
  * Funzione che effettua la richiesta dei dati del meteo alla API Open-meteo
  * @returns L'array contenente i dati
  * @async
+ * @throws Un errore di rete
  */
 async function richiestaMeteo() {
     const urlMeteo="https://api.open-meteo.com/v1/forecast?"
     let urlNuovo= urlMeteo+"latitude="+latitudine+"&longitude="+longitudine+"&current=temperature_2m,wind_speed_10m&timezone=auto"
     urlNuovo+="&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max,sunrise,sunset"
     urlNuovo+="&forecast_days="+giorni.value;
-    const risposta= await fetch(urlNuovo)
-    const risposta_meteo=await risposta.json()
 
+    const risposta= await fetch(urlNuovo)
+    if (!risposta.ok) throw new Error("Errore di rete");
+
+    const risposta_meteo=await risposta.json()
     return risposta_meteo;
 }
-
 
 /**
  * Funzione che aggiona i dati della pagina con i dati meteo corretti
@@ -61,16 +63,59 @@ async function richiestaMeteo() {
  */
 async function aggiornaDati() {
     leggiParametri();
-    const dati_meteo = await richiestaMeteo()
 
-    temperatura.innerHTML+= dati_meteo.current.temperature_2m
-    vento.innerHTML+=dati_meteo.current.wind_speed_10m
-    orario= new Date(dati_meteo.current.time)
-    orarioRilevazione.innerHTML+="Il giorno "+orario.getDate()+"/"+( orario.getMonth()+1 != 13?orario.getMonth()+1: orario.getMonth())+"/"+orario.getFullYear()+" alle ore ";
-    orarioRilevazione.innerHTML+=orario.getHours()+":"+orario.getMinutes();
+    try{
+        const dati_meteo = await richiestaMeteo();
+        aggiornaMeteoCorrente(dati_meteo.current);
+        aggiornaTabella(dati_meteo);
+    }
+    catch(e){
+        throw e;
+    }
+}
+
+
+/**
+ * Funzione che aggiona i dati del meteo attuale
+ * @param {Array<Object>} dati_meteo I dati del meteo
+ */
+function aggiornaMeteoCorrente(dati_meteo){
+    temperatura.innerHTML = dati_meteo.temperature_2m
+    vento.innerHTML = dati_meteo.wind_speed_10m
+
+    const orario= new Date(dati_meteo.time)
+    orarioRilevazione.innerHTML = "Il giorno "+orario.getDate()+"/"+(orario.getMonth()+1)+"/"+orario.getFullYear()+" alle ore "+orario.getHours()+":"+orario.getMinutes();
 }
 
 //GESTIONE TABELLA
+
+
+/**
+ * Funzione che aggiorna la tabella con i dati meteo corretti
+ * 
+ */
+function aggiornaTabella(dati_meteo){
+    const dati_meteo_giornalieri = dati_meteo.daily
+
+    creaIntestazione(alba_tramonto.checked);
+
+    for (let i=0; i<giorni.value; i++){
+        const data=new Date(dati_meteo_giornalieri.time[i])
+        const dataNumerica=data.getDate()+"/"+( data.getMonth()+1)+"/"+data.getFullYear()
+        const condizione = iconaMeteo(dati_meteo_giornalieri.weather_code[i]);
+        const arrayGiornoMeteo=[dataNumerica, condizione, dati_meteo_giornalieri.temperature_2m_max[i], dati_meteo_giornalieri.temperature_2m_min[i]]
+        arrayGiornoMeteo.push(dati_meteo_giornalieri.precipitation_sum[i]);
+        arrayGiornoMeteo.push(dati_meteo_giornalieri.wind_speed_10m_max[i]);
+
+        if (alba_tramonto.checked){
+            const orario_alba=new Date(dati_meteo_giornalieri.sunrise[i])
+            const orario_tramonto = new Date(dati_meteo_giornalieri.sunset[i])
+            arrayGiornoMeteo.push(orario_alba.getHours()+":"+orario_alba.getMinutes());
+            arrayGiornoMeteo.push(orario_tramonto.getHours()+":"+orario_tramonto.getMinutes());
+        }
+        creaRigaTabella(arrayGiornoMeteo)
+    }
+}
 
 /**
  * Funzione che dato un codice meteo, restituisce la corrispettiva immagine
@@ -94,14 +139,13 @@ function iconaMeteo(code) {
     return 'Pioggia <br><img src="../img/icone/pioggia.png" alt="Pioggia" width="100px" height="70px">';
 
   if ((code >= 71 && code <= 77) || code==85 || code==86 )
-    return 'Neve <br><img src="../img/icone/neve.png" alt="Neve" width="100px" height="70px"">';
+    return 'Neve <br><img src="../img/icone/neve.png" alt="Neve" width="100px" height="70px">';
 
   if (code >= 95 && code <= 99)
     return 'Temporale <br><img src="../img/icone/temporale.png" alt="Temporale" width="100px" height="70px">';
 
   return 'Sconosciuto <br><img src="" alt="Sconosciuto" width="100px" height="70px">';
 }
-
 
 /**
  * Funzione che aggiuge un riga alla tabella
@@ -131,61 +175,32 @@ function creaIntestazione(alba){
     t_body.innerHTML=""
 
     instestazione.innerHTML="<th>Data</th> <th>Condizione meteo</th> <th>Temperatura massima (°C)</th> <th>Temperatura minima (°C)</th>"
-    instestazione.innerHTML+="<th>Somma precipitazioni (mm)</th><th>Vento</th>"
+    instestazione.innerHTML+="<th>Somma precipitazioni (mm)</th><th>Vento(Km/h)</th>"
 
     if (alba) instestazione.innerHTML+="<th>Alba</th> <th>Tramonto</th>"
 
     t_head.append(instestazione);
 }
 
-/**
- * Funzione che aggiorna la tabella con i dati meteo corretti
- * @async
- */
-async function aggiornaTabella(){
-    const dati_meteo= await richiestaMeteo();
-    const dati_meteo_giornalieri = dati_meteo.daily
-
-    creaIntestazione(alba_tramonto.checked);
-
-    for (let i=0; i<giorni.value; i++){
-        console.log(dati_meteo_giornalieri)
-        const data=new Date(dati_meteo_giornalieri.time[i])
-        const dataNumerica=data.getDate()+"/"+( data.getMonth()+1 != 13?data.getMonth()+1: data.getMonth())+"/"+data.getFullYear()
-        const condizione = iconaMeteo(dati_meteo_giornalieri.weather_code[i]);
-        const arrayGiornoMeteo=[dataNumerica, condizione, dati_meteo_giornalieri.temperature_2m_max[i], dati_meteo_giornalieri.temperature_2m_min[i]]
-        arrayGiornoMeteo.push(dati_meteo_giornalieri.precipitation_sum[i]);
-        arrayGiornoMeteo.push(dati_meteo_giornalieri.wind_speed_10m_max[i]);
-
-        if (alba_tramonto.checked){
-            const orario_alba=new Date(dati_meteo_giornalieri.sunrise[i])
-            const orario_tramonto = new Date(dati_meteo_giornalieri.sunset[i])
-            arrayGiornoMeteo.push(orario_alba.getHours()+":"+orario_alba.getMinutes());
-            arrayGiornoMeteo.push(orario_tramonto.getHours()+":"+orario_tramonto.getMinutes());
-        }
-        creaRigaTabella(arrayGiornoMeteo)
-    }
-}
-
 //GESTIONE EVENT LISTENER
 
 /**Event listener che aggiorna la tabella ad ogni cambiamento della checkbox sul orario dell'alba e tramonto */
 alba_tramonto.addEventListener("change", function(){
-    aggiornaTabella();
+    aggiornaDati();
 })
 
-/**Event listener che aggiorna la tabella ad ogni variazione del numero di giorni */
 giorni.addEventListener("change", function(){
     if (this.value < 1) this.value=1;
     else if (this.value>16) this.value=16;
     
-    aggiornaTabella();
+    aggiornaDati();
 })
 
 /**Event listener che illumina la stella se il mouse ci passa sopra */
 stella.addEventListener("mouseover", function(){
     if(!favorito) stella.src="../img/Stella_piena.png";
 })
+
 /**Event listener che spegne la stella se il mouse passa fuori da essas */
 stella.addEventListener("mouseout", function(){
    if (!favorito) stella.src="../img/Stella_vuota.png";
@@ -220,22 +235,25 @@ function mostraCaricamento(punti, elemento) {
 document.addEventListener("DOMContentLoaded", function(){
     const paragrafo = document.getElementById("paragrafoCaricamento");
 
-      let punti = 0;
+    let punti = 0;
 
     const caricamento = setInterval(() => {
         punti = (punti + 1) % 4;
         mostraCaricamento(punti, paragrafo);
     }, 300);
 
-    aggiornaDati().then(risposta =>{
-        clearInterval(caricamento);
-        paragrafoCaricamento.innerHTML=""   
-        
+    aggiornaDati()
+      .then(()=>{
         titolo.innerHTML="3DMeteo: "+nome
         nome_finesta.innerHTML+=nome
-    })
-    aggiornaTabella().then()
+        clearInterval(caricamento);
+        paragrafo.innerHTML=""
+      })
+      .catch(() =>{
+        clearInterval(caricamento);
+        paragrafo.innerHTML="Errore nel caricamento del meteo. Riprovare più tardi."
+      })
 
     localStorage.setItem("Recente", [nome, latitudine, longitudine]);
-
 })
+
